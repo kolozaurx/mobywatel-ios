@@ -16,21 +16,29 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show project structure
-        run: find . -name "*.xcodeproj" -o -name "*.xcworkspace" -o -name "Package.swift" | head -20
-
-      - name: Build IPA (unsigned)
+      - name: Show structure
         run: |
-          PROJECT=$(find . -name "*.xcodeproj" | head -1)
-          echo "Found project: $PROJECT"
+          echo "=== Root ==="
+          ls -la
+          echo "=== App folder ==="
+          ls -la App/ || echo "brak folderu App"
+          echo "=== Sources folder ==="
+          ls -la Sources/ || echo "brak folderu Sources"
+          find . -name "Package.swift" | head -10
+          find . -name "*.xcodeproj" | head -10
+          find . -name "*.xcworkspace" | head -10
+
+      - name: Build with xcodebuild (Swift Package)
+        run: |
+          cd App
           xcodebuild \
-            -project "$PROJECT" \
+            -scheme mObywatel \
             -sdk iphoneos \
             -configuration Release \
-            -derivedDataPath build \
+            -derivedDataPath ../build \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
-            build
+            build 2>&1 | tail -50
 
       - name: Package as IPA
         run: |
