@@ -16,15 +16,33 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
+      - name: Show Package.swift contents
+        run: |
+          echo "=== Root Package.swift ==="
+          cat Package.swift || echo "brak"
+          echo "=== App/Package.swift ==="
+          cat App/Package.swift || echo "brak"
+          echo "=== Wszystkie Package.swift ==="
+          find . -name "Package.swift" -exec echo "--- {} ---" \; -exec cat {} \;
+
       - name: Fix Swift tools version
         run: |
-          for f in $(find . -name "Package.swift"); do
-            sed -i '' 's|// swift-tools-version:.*|// swift-tools-version: 5.9|' "$f" || \
-            sed -i    's|// swift-tools-version:.*|// swift-tools-version: 5.9|' "$f"
+          find . -name "Package.swift" | while read f; do
+            echo "Patching $f"
+            sed -i '' 's|// swift-tools-version:.*|// swift-tools-version: 5.9|' "$f"
           done
 
-      - name: Build
+      - name: List schemes
         run: |
+          if [ -f "App/Package.swift" ]; then
+            cd App && xcodebuild -list 2>&1
+          else
+            xcodebuild -list 2>&1
+          fi
+
+      - name: Build FULL output
+        run: |
+          set -o pipefail
           if [ -f "App/Package.swift" ]; then
             cd App
             xcodebuild \
@@ -34,7 +52,7 @@ jobs:
               -derivedDataPath ../build \
               CODE_SIGNING_ALLOWED=NO \
               ONLY_ACTIVE_ARCH=NO \
-              build 2>&1 | tail -80
+              build 2>&1
           else
             xcodebuild \
               -scheme mObywatel \
@@ -43,27 +61,15 @@ jobs:
               -derivedDataPath build \
               CODE_SIGNING_ALLOWED=NO \
               ONLY_ACTIVE_ARCH=NO \
-              build 2>&1 | tail -80
+              build 2>&1
           fi
 
-      - name: Find app bundle
+      - name: Find all build artifacts
+        if: always()
         run: |
-          echo "=== Szukam .app ==="
-          find . -name "*.app" -type d 2>/dev/null
-          echo "=== Zawartość build/ ==="
-          find build/ -type d | head -30 || echo "brak folderu build/"
-
-      - name: Package as IPA
-        run: |
-          APP=$(find . -name "*.app" -type d | grep -v ".xcodeproj" | head -1)
-          echo "Found app: $APP"
-          mkdir -p Payload
-          cp -r "$APP" Payload/
-          zip -r mObywatel.ipa Payload
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: mObywatel-ipa
-          path: mObywatel.ipa
-          retention-days: 30
+          echo "=== Wszystkie pliki .app ==="
+          find . -name "*.app" -type d 2>/dev/null || echo "brak .app"
+          echo "=== Struktura build/ ==="
+          find build/ -maxdepth 5 -type d 2>/dev/null || echo "brak build/"
+          echo "=== Struktura .build/ ==="
+          find .build/ -maxdepth 5 -type d 2>/dev/null || echo "brak .build/"
