@@ -16,29 +16,60 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show structure
+      - name: Show all files
         run: |
-          echo "=== Root ==="
+          echo "=== ROOT ==="
           ls -la
-          echo "=== App folder ==="
-          ls -la App/ || echo "brak folderu App"
-          echo "=== Sources folder ==="
-          ls -la Sources/ || echo "brak folderu Sources"
-          find . -name "Package.swift" | head -10
-          find . -name "*.xcodeproj" | head -10
-          find . -name "*.xcworkspace" | head -10
+          echo "=== App/ ==="
+          ls -la App/ || echo "brak"
+          echo "=== Sources/ ==="
+          ls -la Sources/ || echo "brak"
+          echo "=== Package.swift (root) ==="
+          cat Package.swift || echo "brak"
+          echo "=== Package.swift (App/) ==="
+          cat App/Package.swift || echo "brak"
 
-      - name: Build with xcodebuild (Swift Package)
+      - name: Fix Swift tools version
         run: |
-          cd App
-          xcodebuild \
-            -scheme mObywatel \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath ../build \
-            CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=NO \
-            build 2>&1 | tail -50
+          for f in $(find . -name "Package.swift"); do
+            echo "Patching $f"
+            sed -i '' 's|// swift-tools-version:.*|// swift-tools-version: 5.9|' "$f" || \
+            sed -i    's|// swift-tools-version:.*|// swift-tools-version: 5.9|' "$f"
+          done
+
+      - name: Build
+        run: |
+          # Próbuj w App/ jeśli tam jest Package.swift
+          if [ -f "App/Package.swift" ]; then
+            cd App
+            xcodebuild \
+              -scheme mObywatel \
+              -sdk iphoneos \
+              -configuration Release \
+              -derivedDataPath ../build \
+              CODE_SIGNING_ALLOWED=NO \
+              ONLY_ACTIVE_ARCH=NO \
+              build 2>&1 | tail -80
+          else
+            xcodebuild \
+              -scheme mObywatel \
+              -sdk iphoneos \
+              -configuration Release \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO \
+              ONLY_ACTIVE_ARCH=NO \
+              build 2>&1 | tail -80
+          fi
+
+      - name: List schemes (debug jeśli błąd)
+        if: failure()
+        run: |
+          echo "=== Dostępne schematy ==="
+          if [ -f "App/Package.swift" ]; then
+            cd App && xcodebuild -list 2>&1
+          else
+            xcodebuild -list 2>&1
+          fi
 
       - name: Package as IPA
         run: |
